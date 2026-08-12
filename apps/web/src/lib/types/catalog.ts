@@ -2,7 +2,8 @@ export type ViewMode = "grid" | "list"
 
 export type SortOption =
   | "featured"
+  | "newest"
   | "price-asc"
   | "price-desc"
-  | "newest"
-  | "rating"
+  | "name-asc"
+  | "name-desc"

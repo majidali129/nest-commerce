@@ -13,8 +13,15 @@ export interface ProductVariant {
   color?: string
   size?: string
   sku: string
+  /** Present on API-mapped variants; falls back to product price in UI. */
   price?: number
+  compare_at_price?: number
+  discount_percent?: number
+  stock?: number
   stock_status: StockStatus
+  image_url?: string
+  image_alt?: string
+  is_default?: boolean
 }
 
 export interface Product {

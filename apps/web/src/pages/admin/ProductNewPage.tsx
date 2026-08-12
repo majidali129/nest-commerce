@@ -6,7 +6,7 @@ export function ProductNewPage() {
     <div>
       <AdminPageHeader
         title="New product"
-        description="Add a product to your catalog."
+        description="Step 1: create the product. Step 2: add variants with images."
       />
       <ProductForm />
     </div>

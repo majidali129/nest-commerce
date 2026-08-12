@@ -1,13 +1,13 @@
 import { Link } from "react-router"
 import { Package } from "lucide-react"
+import type { OrderListItem } from "@repo/contracts"
 
 import { Card, CardContent } from "#components/ui/card"
 import { OrderStatusBadge } from "#components/order/OrderStatusBadge"
 import { formatDate, formatPrice } from "#lib/format"
-import type { Order } from "#lib/types"
 
-export function OrderCard({ order }: { order: Order }) {
-  const previewImage = order.items[0]?.image_url
+export function OrderCard({ order }: { order: OrderListItem }) {
+  const previewImage = order.previewImageUrl
 
   return (
     <Link to={`/profile/orders/${order.id}`} className="group block">
@@ -27,17 +27,19 @@ export function OrderCard({ order }: { order: Order }) {
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="font-medium">{order.id}</p>
+                <p className="font-medium">{order.orderNumber}</p>
                 <p className="text-sm text-muted-foreground">
-                  {formatDate(order.placed_at)}
+                  {formatDate(order.createdAt)}
                 </p>
               </div>
               <OrderStatusBadge status={order.status} />
             </div>
             <p className="text-sm text-muted-foreground">
-              {order.item_count} {order.item_count === 1 ? "item" : "items"}
+              {order.itemCount} {order.itemCount === 1 ? "item" : "items"}
             </p>
-            <p className="text-sm font-medium">{formatPrice(order.total)}</p>
+            <p className="text-sm font-medium">
+              {formatPrice(order.totalAmount)}
+            </p>
           </div>
         </CardContent>
       </Card>

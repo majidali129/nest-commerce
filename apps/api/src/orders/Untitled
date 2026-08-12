@@ -1,0 +1,595 @@
+// import {
+//   BadRequestException,
+//   Inject,
+//   Injectable,
+//   NotFoundException,
+// } from '@nestjs/common'
+// import type {
+//   AdminOrderListItem,
+//   AdminOrdersReturnType,
+//   CreateOrderInput,
+//   OrderAddressSnapshot,
+//   OrderItemReturnType,
+//   OrderListItem,
+//   OrderReturnType,
+//   OrdersReturnType,
+//   PaymentReturnType,
+// } from '@repo/contracts'
+// import { DataSource, EntityManager, In, Repository } from 'typeorm'
+// import { Address } from 'src/addresses/address.entity'
+// import { AddressType } from 'src/addresses/constants'
+// import { Cart } from 'src/carts/cart.entity'
+// import { CartItem } from 'src/carts/cart-item.entity'
+// import { CartStatus } from 'src/carts/constants'
+// import { DATA_SOURCE } from 'src/shared/constants'
+// import { VariantStatus } from 'src/product-variants/constants'
+// import { ProductVariant } from 'src/product-variants/product-variant.entity'
+// import { PublicationStatus } from 'src/products/constants'
+// import {
+//   ORDER_REPOSITORY,
+//   OrderStatus,
+//   PaymentProvider,
+//   PaymentStatus,
+// } from './constants'
+// import { Order } from './order.entity'
+// import { OrderItem } from './order-item.entity'
+// import { OrderAddress } from './order-address.entity'
+// import { Payment } from './payment.entity'
+
+// @Injectable()
+// export class OrdersService {
+//   constructor(
+//     @Inject(ORDER_REPOSITORY)
+//     private readonly orderRepo: Repository<Order>,
+//     @Inject(DATA_SOURCE)
+//     private readonly dataSource: DataSource,
+//   ) {}
+
+//   async listForUser(userId: number): Promise<OrdersReturnType> {
+//     const orders = await this.orderRepo.find({
+//       where: { userId },
+//       relations: { items: true },
+//       order: { placedAt: 'DESC' },
+//     })
+
+//     return {
+//       items: orders.map((order) => this.toListItem(order)),
+//     }
+//   }
+
+//   async listAllAdmin(): Promise<AdminOrdersReturnType> {
+//     const orders = await this.orderRepo.find({
+//       relations: {
+//         items: true,
+//         user: true,
+//         shippingAddress: true,
+//       },
+//       order: { placedAt: 'DESC' },
+//     })
+
+//     return {
+//       items: orders.map((order) => this.toAdminListItem(order)),
+//     }
+//   }
+
+//   async getForUser(userId: number, orderId: number): Promise<OrderReturnType> {
+//     const order = await this.findOwnedOrder(userId, orderId)
+//     return this.toOrderReturn(order)
+//   }
+
+//   async getByIdAdmin(orderId: number): Promise<OrderReturnType> {
+//     const order = await this.orderRepo.findOne({
+//       where: { id: orderId },
+//       relations: {
+//         items: true,
+//         shippingAddress: true,
+//         payments: true,
+//         user: true,
+//       },
+//     })
+//     if (!order) {
+//       throw new NotFoundException('Order not found')
+//     }
+//     return this.toOrderReturn(order)
+//   }
+
+//   async listForUserAdmin(userId: number): Promise<OrderListItem[]> {
+//     const orders = await this.orderRepo.find({
+//       where: { userId },
+//       relations: { items: true },
+//       order: { placedAt: 'DESC' },
+//     })
+//     return orders.map((order) => this.toListItem(order))
+//   }
+
+//   async createFromCart(
+//     userId: number,
+//     input: CreateOrderInput,
+//   ): Promise<OrderReturnType> {
+//     // Shipping/discount are server-owned (not client-controlled).
+//     const shippingAmount = 0
+//     const discountAmount = 0
+
+//     const orderId = await this.dataSource.transaction(async (manager) => {
+//       const cartRepo = manager.getRepository(Cart)
+//       const cartItemRepo = manager.getRepository(CartItem)
+//       const variantRepo = manager.getRepository(ProductVariant)
+//       const addressRepo = manager.getRepository(Address)
+//       const orderRepo = manager.getRepository(Order)
+//       const itemRepo = manager.getRepository(OrderItem)
+//       const orderAddressRepo = manager.getRepository(OrderAddress)
+//       const paymentRepo = manager.getRepository(Payment)
+
+//       const cart = await cartRepo
+//         .createQueryBuilder('cart')
+//         .setLock('pessimistic_write')
+//         .where('cart.userId = :userId', { userId })
+//         .andWhere('cart.status = :status', { status: CartStatus.ACTIVE })
+//         .getOne()
+
+//       if (!cart) {
+//         throw new BadRequestException('Cart is empty')
+//       }
+
+//       const cartItems = await cartItemRepo.find({
+//         where: { cartId: cart.id },
+//       })
+
+//       if (!cartItems.length) {
+//         throw new BadRequestException('Cart is empty')
+//       }
+
+//       const variantIds = [...new Set(cartItems.map((item) => item.variantId))]
+//       const lockedVariants = await variantRepo
+//         .createQueryBuilder('variant')
+//         .setLock('pessimistic_write')
+//         .leftJoinAndSelect('variant.product', 'product')
+//         .where('variant.id IN (:...variantIds)', { variantIds })
+//         .getMany()
+
+//       const variantMap = new Map(
+//         lockedVariants.map((variant) => [variant.id, variant]),
+//       )
+
+//       for (const item of cartItems) {
+//         const variant = variantMap.get(item.variantId)
+//         if (
+//           !variant ||
+//           variant.deletedAt ||
+//           variant.status !== VariantStatus.ACTIVE ||
+//           !variant.product ||
+//           variant.product.deletedAt ||
+//           variant.product.publicationStatus !== PublicationStatus.PUBLISHED
+//         ) {
+//           throw new BadRequestException(
+//             `Variant ${item.variantId} is not available for purchase`,
+//           )
+//         }
+
+//         const available = variant.stockOnHand - variant.reservedStock
+//         if (item.quantity > available) {
+//           throw new BadRequestException(
+//             `Only ${Math.max(0, available)} unit(s) available for ${variant.sku}`,
+//           )
+//         }
+//       }
+
+//       const address = await addressRepo
+//         .createQueryBuilder('address')
+//         .setLock('pessimistic_write')
+//         .where('address.id = :id', { id: input.addressId })
+//         .andWhere('address.userId = :userId', { userId })
+//         .getOne()
+
+//       if (!address) {
+//         throw new NotFoundException('Address not found')
+//       }
+
+//       const subtotal = cartItems.reduce((sum, item) => {
+//         const variant = variantMap.get(item.variantId)!
+//         return sum + variant.price * item.quantity
+//       }, 0)
+//       const total = Math.max(0, subtotal + shippingAmount - discountAmount)
+
+//       const order = await orderRepo.save(
+//         orderRepo.create({
+//           orderNumber: `TMP-${userId}-${Date.now()}`,
+//           userId,
+//           status: OrderStatus.PENDING_PAYMENT,
+//           subtotal,
+//           shippingAmount,
+//           discountAmount,
+//           total,
+//           currency: 'USD',
+//           placedAt: new Date(),
+//           paidAt: null,
+//         }),
+//       )
+
+//       order.orderNumber = this.buildOrderNumber(order.id)
+//       await orderRepo.save(order)
+
+//       for (const item of cartItems) {
+//         const variant = variantMap.get(item.variantId)!
+//         await itemRepo.save(
+//           itemRepo.create({
+//             orderId: order.id,
+//             variantId: variant.id,
+//             productId: variant.productId,
+//             title: variant.product?.name ?? 'Product',
+//             sku: variant.sku,
+//             imageUrl: variant.media?.url ?? null,
+//             unitPrice: variant.price,
+//             quantity: item.quantity,
+//             color: variant.attributes?.color ?? null,
+//             size: variant.attributes?.size ?? null,
+//           }),
+//         )
+
+//         variant.reservedStock += item.quantity
+//         await variantRepo.save(variant)
+//       }
+
+//       await orderAddressRepo.save(
+//         orderAddressRepo.create({
+//           orderId: order.id,
+//           type: AddressType.SHIPPING,
+//           sourceAddressId: address.id,
+//           recipientName: address.recipientName,
+//           email: address.email,
+//           phone: address.phone,
+//           line1: address.line1,
+//           city: address.city,
+//           state: address.state,
+//           zipCode: address.zipCode,
+//           country: address.country,
+//         }),
+//       )
+
+//       await paymentRepo.save(
+//         paymentRepo.create({
+//           orderId: order.id,
+//           provider: PaymentProvider.PENDING,
+//           status: PaymentStatus.PENDING,
+//           amount: total,
+//           currency: 'USD',
+//           providerPaymentId: null,
+//           providerClientSecret: null,
+//           failureMessage: null,
+//           rawPayload: null,
+//           paidAt: null,
+//         }),
+//       )
+
+//       cart.status = CartStatus.CONVERTED
+//       cart.convertedOrderId = order.id
+//       await cartRepo.save(cart)
+
+//       return order.id
+//     })
+
+//     return this.getForUser(userId, orderId)
+//   }
+
+//   async cancelForUser(
+//     userId: number,
+//     orderId: number,
+//   ): Promise<OrderReturnType> {
+//     await this.dataSource.transaction(async (manager) => {
+//       const order = await this.lockOrder(manager, orderId)
+//       if (order.userId !== userId) {
+//         throw new NotFoundException('Order not found')
+//       }
+//       if (order.status !== OrderStatus.PENDING_PAYMENT) {
+//         throw new BadRequestException('Only pending payment orders can be cancelled')
+//       }
+
+//       await this.releaseReservations(manager, order)
+//       await this.cancelPendingPayments(manager, order.id)
+
+//       order.status = OrderStatus.CANCELLED
+//       await manager.getRepository(Order).save(order)
+//     })
+
+//     return this.getForUser(userId, orderId)
+//   }
+
+//   /**
+//    * Finalize a paid order: move reserved stock to sold (stockOnHand--).
+//    * Intended for payment-provider handlers later — not exposed as a webhook yet.
+//    */
+//   async markOrderPaid(
+//     orderId: number,
+//     options?: {
+//       provider?: PaymentProvider
+//       providerPaymentId?: string
+//       rawPayload?: Record<string, unknown> | null
+//     },
+//   ): Promise<OrderReturnType> {
+//     await this.dataSource.transaction(async (manager) => {
+//       const order = await this.lockOrder(manager, orderId)
+
+//       if (order.status === OrderStatus.PAID) {
+//         return
+//       }
+//       if (order.status !== OrderStatus.PENDING_PAYMENT) {
+//         throw new BadRequestException(
+//           `Order cannot be marked paid from status ${order.status}`,
+//         )
+//       }
+
+//       await this.consumeReservations(manager, order)
+
+//       const paymentRepo = manager.getRepository(Payment)
+//       const payment =
+//         (await paymentRepo.findOne({
+//           where: { orderId: order.id, status: PaymentStatus.PENDING },
+//           order: { id: 'DESC' },
+//         })) ??
+//         paymentRepo.create({
+//           orderId: order.id,
+//           provider: options?.provider ?? PaymentProvider.PENDING,
+//           status: PaymentStatus.PENDING,
+//           amount: order.total,
+//           currency: order.currency,
+//         })
+
+//       payment.provider = options?.provider ?? payment.provider
+//       payment.status = PaymentStatus.SUCCEEDED
+//       payment.providerPaymentId =
+//         options?.providerPaymentId ?? payment.providerPaymentId
+//       payment.rawPayload = options?.rawPayload ?? payment.rawPayload
+//       payment.paidAt = new Date()
+//       payment.failureMessage = null
+//       await paymentRepo.save(payment)
+
+//       order.status = OrderStatus.PAID
+//       order.paidAt = payment.paidAt
+//       await manager.getRepository(Order).save(order)
+//     })
+
+//     const order = await this.orderRepo.findOne({
+//       where: { id: orderId },
+//       relations: {
+//         items: true,
+//         shippingAddress: true,
+//         payments: true,
+//       },
+//     })
+//     if (!order) {
+//       throw new NotFoundException('Order not found')
+//     }
+//     return this.toOrderReturn(order)
+//   }
+
+//   private async lockOrder(
+//     manager: EntityManager,
+//     orderId: number,
+//   ): Promise<Order> {
+//     const order = await manager
+//       .getRepository(Order)
+//       .createQueryBuilder('ord')
+//       .setLock('pessimistic_write')
+//       .where('ord.id = :orderId', { orderId })
+//       .getOne()
+
+//     if (!order) {
+//       throw new NotFoundException('Order not found')
+//     }
+
+//     order.items = await manager.getRepository(OrderItem).find({
+//       where: { orderId: order.id },
+//     })
+//     return order
+//   }
+
+//   private async releaseReservations(manager: EntityManager, order: Order) {
+//     const variantRepo = manager.getRepository(ProductVariant)
+//     const items = order.items ?? []
+//     if (!items.length) return
+
+//     const variantIds = [
+//       ...new Set(
+//         items
+//           .map((item) => item.variantId)
+//           .filter((id): id is number => id != null),
+//       ),
+//     ]
+//     if (!variantIds.length) return
+
+//     const variants = await variantRepo
+//       .createQueryBuilder('variant')
+//       .setLock('pessimistic_write')
+//       .where('variant.id IN (:...variantIds)', { variantIds })
+//       .getMany()
+//     const variantMap = new Map(variants.map((v) => [v.id, v]))
+
+//     for (const item of items) {
+//       if (item.variantId == null) continue
+//       const variant = variantMap.get(item.variantId)
+//       if (!variant) continue
+//       variant.reservedStock = Math.max(0, variant.reservedStock - item.quantity)
+//       await variantRepo.save(variant)
+//     }
+//   }
+
+//   private async consumeReservations(manager: EntityManager, order: Order) {
+//     const variantRepo = manager.getRepository(ProductVariant)
+//     const items = order.items ?? []
+//     if (!items.length) return
+
+//     const variantIds = [
+//       ...new Set(
+//         items
+//           .map((item) => item.variantId)
+//           .filter((id): id is number => id != null),
+//       ),
+//     ]
+//     if (!variantIds.length) return
+
+//     const variants = await variantRepo
+//       .createQueryBuilder('variant')
+//       .setLock('pessimistic_write')
+//       .where('variant.id IN (:...variantIds)', { variantIds })
+//       .getMany()
+//     const variantMap = new Map(variants.map((v) => [v.id, v]))
+
+//     for (const item of items) {
+//       if (item.variantId == null) continue
+//       const variant = variantMap.get(item.variantId)
+//       if (!variant) {
+//         throw new BadRequestException(
+//           `Variant ${item.variantId} missing while finalizing payment`,
+//         )
+//       }
+//       if (variant.reservedStock < item.quantity) {
+//         throw new BadRequestException(
+//           `Insufficient reserved stock for ${variant.sku}`,
+//         )
+//       }
+//       if (variant.stockOnHand < item.quantity) {
+//         throw new BadRequestException(
+//           `Insufficient on-hand stock for ${variant.sku}`,
+//         )
+//       }
+//       variant.reservedStock -= item.quantity
+//       variant.stockOnHand -= item.quantity
+//       await variantRepo.save(variant)
+//     }
+//   }
+
+//   private async cancelPendingPayments(manager: EntityManager, orderId: number) {
+//     await manager.getRepository(Payment).update(
+//       {
+//         orderId,
+//         status: In([PaymentStatus.PENDING, PaymentStatus.REQUIRES_ACTION]),
+//       },
+//       {
+//         status: PaymentStatus.CANCELLED,
+//       },
+//     )
+//   }
+
+//   private async findOwnedOrder(userId: number, orderId: number): Promise<Order> {
+//     const order = await this.orderRepo.findOne({
+//       where: { id: orderId, userId },
+//       relations: {
+//         items: true,
+//         shippingAddress: true,
+//         payments: true,
+//       },
+//     })
+
+//     if (!order) {
+//       throw new NotFoundException('Order not found')
+//     }
+
+//     return order
+//   }
+
+//   private buildOrderNumber(id: number): string {
+//     return `VG-${String(id).padStart(6, '0')}`
+//   }
+
+//   private toListItem(order: Order): OrderListItem {
+//     const itemCount = (order.items ?? []).reduce(
+//       (sum, item) => sum + item.quantity,
+//       0,
+//     )
+//     return {
+//       id: order.id,
+//       orderNumber: order.orderNumber,
+//       status: order.status as OrderListItem['status'],
+//       itemCount,
+//       total: order.total,
+//       currency: order.currency,
+//       placedAt: order.placedAt.toISOString(),
+//       paidAt: order.paidAt?.toISOString() ?? null,
+//     }
+//   }
+
+//   private toAdminListItem(order: Order): AdminOrderListItem {
+//     return {
+//       ...this.toListItem(order),
+//       userId: order.userId,
+//       customerName:
+//         order.shippingAddress?.recipientName ?? order.user?.name ?? 'Customer',
+//       customerEmail:
+//         order.shippingAddress?.email ?? order.user?.email ?? '',
+//     }
+//   }
+
+//   private toOrderReturn(order: Order): OrderReturnType {
+//     const items = (order.items ?? []).map((item) => this.toItemReturn(item))
+//     const latestPayment =
+//       (order.payments ?? []).slice().sort((a, b) => b.id - a.id)[0] ?? null
+
+//     return {
+//       id: order.id,
+//       orderNumber: order.orderNumber,
+//       status: order.status as OrderReturnType['status'],
+//       subtotal: order.subtotal,
+//       shippingAmount: order.shippingAmount,
+//       discountAmount: order.discountAmount,
+//       total: order.total,
+//       currency: order.currency,
+//       itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+//       items,
+//       shippingAddress: order.shippingAddress
+//         ? this.toAddressSnapshot(order.shippingAddress)
+//         : null,
+//       payment: latestPayment ? this.toPaymentReturn(latestPayment) : null,
+//       placedAt: order.placedAt.toISOString(),
+//       paidAt: order.paidAt?.toISOString() ?? null,
+//       createdAt: order.createdAt.toISOString(),
+//       updatedAt: order.updatedAt.toISOString(),
+//     }
+//   }
+
+//   private toItemReturn(item: OrderItem): OrderItemReturnType {
+//     return {
+//       id: item.id,
+//       variantId: item.variantId,
+//       productId: item.productId,
+//       title: item.title,
+//       sku: item.sku,
+//       imageUrl: item.imageUrl,
+//       unitPrice: item.unitPrice,
+//       quantity: item.quantity,
+//       lineTotal: item.unitPrice * item.quantity,
+//       color: item.color,
+//       size: item.size,
+//     }
+//   }
+
+//   private toAddressSnapshot(address: OrderAddress): OrderAddressSnapshot {
+//     return {
+//       id: address.id,
+//       type: address.type as OrderAddressSnapshot['type'],
+//       recipientName: address.recipientName,
+//       email: address.email,
+//       phone: address.phone,
+//       line1: address.line1,
+//       city: address.city,
+//       state: address.state,
+//       zipCode: address.zipCode,
+//       country: address.country,
+//     }
+//   }
+
+//   private toPaymentReturn(payment: Payment): PaymentReturnType {
+//     return {
+//       id: payment.id,
+//       orderId: payment.orderId,
+//       provider: payment.provider as PaymentReturnType['provider'],
+//       status: payment.status as PaymentReturnType['status'],
+//       amount: payment.amount,
+//       currency: payment.currency,
+//       providerPaymentId: payment.providerPaymentId,
+//       failureMessage: payment.failureMessage,
+//       paidAt: payment.paidAt?.toISOString() ?? null,
+//       createdAt: payment.createdAt.toISOString(),
+//       updatedAt: payment.updatedAt.toISOString(),
+//     }
+//   }
+// }

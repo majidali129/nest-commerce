@@ -1,19 +1,24 @@
+import type { OrderStatus } from "@repo/contracts"
+
 import { Badge } from "#components/ui/badge"
 import { formatOrderStatus } from "#lib/order-utils"
-import type { OrderStatus } from "#lib/types"
 
 const statusVariants: Record<
   OrderStatus,
   "default" | "secondary" | "outline" | "destructive"
 > = {
-  paid: "secondary",
+  pending: "outline",
   processing: "outline",
   shipped: "default",
   delivered: "secondary",
+  cancelled: "destructive",
+  refunded: "destructive",
 }
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
   return (
-    <Badge variant={statusVariants[status]}>{formatOrderStatus(status)}</Badge>
+    <Badge variant={statusVariants[status] ?? "outline"}>
+      {formatOrderStatus(status)}
+    </Badge>
   )
 }
