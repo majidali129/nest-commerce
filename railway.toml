@@ -1,8 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "pnpm install && pnpm --filter @repo/contracts build && pnpm --filter @repo/api build"
 
 [deploy]
-startCommand = "pnpm --filter @repo/api start:prod"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
