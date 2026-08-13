@@ -250,10 +250,8 @@ export class CheckoutService {
       relations: { product: true },
     })
     const variantMap = new Map(withProducts.map((v) => [v.id, v]))
-    console.log('Variant map', variantMap);
     for (const item of cartItems) {
       const variant = variantMap.get(item.variantId)
-      console.log('Variant', variant);
       if (
         !variant ||
         variant.deletedAt ||
@@ -266,6 +264,7 @@ export class CheckoutService {
           `Variant ${item.variantId} is not available for purchase`,
         )
       }
+      // Soft availability check only — authoritative reserve happens under row locks.
       const available = variant.stockOnHand - variant.reservedStock
       if (item.quantity > available) {
         throw new ConflictException(
@@ -518,8 +517,27 @@ export class CheckoutService {
     const variantRepo = manager.getRepository(ProductVariant)
     const expiresAt = new Date(Date.now() + RESERVATION_TTL_MINUTES * 60_000)
 
+    // Lock variants alone (no joins — Postgres rejects FOR UPDATE on outer joins).
+    // Sort ids so concurrent checkouts acquire locks in the same order.
+    const variantIds = [
+      ...new Set(params.cartItems.map((item) => item.variantId)),
+    ].sort((a, b) => a - b)
+
+    const lockedVariants = await variantRepo
+      .createQueryBuilder('variant')
+      .setLock('pessimistic_write')
+      .where('variant.id IN (:...variantIds)', { variantIds })
+      .getMany()
+    const lockedMap = new Map(lockedVariants.map((v) => [v.id, v]))
+
     for (const item of params.cartItems) {
-      const variant = params.variantMap.get(item.variantId)!
+      const variant = lockedMap.get(item.variantId)
+      if (!variant || variant.deletedAt) {
+        throw new BadRequestException(
+          `Variant ${item.variantId} is not available for purchase`,
+        )
+      }
+
       const available = Math.max(0, variant.stockOnHand - variant.reservedStock)
       if (item.quantity > available) {
         throw new ConflictException(
@@ -529,6 +547,12 @@ export class CheckoutService {
 
       variant.reservedStock += item.quantity
       await variantRepo.save(variant)
+
+      // Keep caller's map in sync for any later use in this TX.
+      const mapped = params.variantMap.get(item.variantId)
+      if (mapped) {
+        mapped.reservedStock = variant.reservedStock
+      }
 
       await reservationRepo.save(
         reservationRepo.create({
