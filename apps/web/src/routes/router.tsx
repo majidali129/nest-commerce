@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router"
+import { createBrowserRouter, Navigate } from "react-router"
 import { UserRole } from "@repo/contracts"
 
 import { AdminLayout } from "#layouts/AdminLayout"
@@ -24,15 +24,15 @@ import { SignUpPage } from "#pages/SignUpPage"
 import { CategoriesListPage } from "#pages/admin/CategoriesListPage"
 import { CategoryEditPage } from "#pages/admin/CategoryEditPage"
 import { CategoryNewPage } from "#pages/admin/CategoryNewPage"
-import { CustomerDetailPage } from "#pages/admin/CustomerDetailPage"
-import { CustomersListPage } from "#pages/admin/CustomersListPage"
-import { DashboardPage } from "#pages/admin/DashboardPage"
+// import { CustomerDetailPage } from "#pages/admin/CustomerDetailPage"
+// import { CustomersListPage } from "#pages/admin/CustomersListPage"
+// import { DashboardPage } from "#pages/admin/DashboardPage"
 import { OrderDetailPage } from "#pages/admin/OrderDetailPage"
 import { OrdersListPage } from "#pages/admin/OrdersListPage"
 import { ProductEditPage } from "#pages/admin/ProductEditPage"
 import { ProductNewPage } from "#pages/admin/ProductNewPage"
 import { ProductsListPage } from "#pages/admin/ProductsListPage"
-import { SettingsPage } from "#pages/admin/SettingsPage"
+// import { SettingsPage } from "#pages/admin/SettingsPage"
 import { ProtectedRoute } from "#routes/ProtectedRoute"
 
 export const router = createBrowserRouter([
@@ -89,7 +89,8 @@ export const router = createBrowserRouter([
       {
         element: <AdminLayout />,
         children: [
-          { index: true, element: <DashboardPage /> },
+          // { index: true, element: <DashboardPage /> },
+          { index: true, element: <Navigate to="products" replace /> },
           { path: "products", element: <ProductsListPage /> },
           { path: "products/new", element: <ProductNewPage /> },
           { path: "products/:productId/edit", element: <ProductEditPage /> },
@@ -101,9 +102,9 @@ export const router = createBrowserRouter([
           },
           { path: "orders", element: <OrdersListPage /> },
           { path: "orders/:orderId", element: <OrderDetailPage /> },
-          { path: "customers", element: <CustomersListPage /> },
-          { path: "customers/:customerId", element: <CustomerDetailPage /> },
-          { path: "settings", element: <SettingsPage /> },
+          // { path: "customers", element: <CustomersListPage /> },
+          // { path: "customers/:customerId", element: <CustomerDetailPage /> },
+          // { path: "settings", element: <SettingsPage /> },
           { path: "*", element: <NotFoundPage /> },
         ],
       },

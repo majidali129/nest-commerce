@@ -27,11 +27,9 @@ export class PaymentsService {
       cartId: dto.cartId,
       addressId: dto.addressId,
     })
-    console.log('Pending order', pending);
 
     if (pending.order.stripeCheckoutSessionId) {
       try {
-        console.log('Retrieving existing checkout session for order', pending.order.id);
         const existing = await this.stripe.checkout.sessions.retrieve(
           pending.order.stripeCheckoutSessionId,
         )
@@ -61,7 +59,6 @@ export class PaymentsService {
       Math.floor(Date.now() / 1000) + RESERVATION_TTL_MINUTES * 60
 
     let session: Stripe.Checkout.Session
-    console.log('Creating Stripe checkout session for order', pending.order.id);
     try {
       session = await this.stripe.checkout.sessions.create({
         mode: 'payment',

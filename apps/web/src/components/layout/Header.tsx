@@ -1,5 +1,5 @@
 import { Link, NavLink } from "react-router"
-import { Search, ShoppingBag, User, Zap } from "lucide-react"
+import {  ShoppingBag, User, Zap } from "lucide-react"
 
 import { Badge } from "#components/ui/badge"
 import { Button } from "#components/ui/button"
@@ -53,14 +53,6 @@ export function Header() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-0.5 sm:gap-2.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Search products"
-            render={<Link to="/products" />}
-          >
-            <Search className="size-5" />
-          </Button>
           <Button
             variant="ghost"
             size="icon"

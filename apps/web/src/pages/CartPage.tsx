@@ -140,7 +140,7 @@ export function CartPage() {
           )}
         </div>
 
-        <OrderSummary subtotal={subtotal} className="h-fit lg:sticky lg:top-20">
+        {itemCount > 0 && <OrderSummary subtotal={subtotal} className="h-fit lg:sticky lg:top-20">
           <Button
             size="lg"
             className="w-full"
@@ -157,7 +157,7 @@ export function CartPage() {
           >
             Continue Shopping
           </Button>
-        </OrderSummary>
+        </OrderSummary>}
       </div>
     </div>
   )

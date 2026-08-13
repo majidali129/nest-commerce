@@ -17,6 +17,7 @@ import { JwtService } from '@nestjs/jwt'
 import { CreateUserDto } from './dtos/create-user-dto'
 import * as bcrypt from 'bcrypt'
 import { LoginUserDto } from './dtos/login-user-dto'
+import { NotificationsService } from 'src/notifications/notifications.service'
 
 @Injectable()
 export class UsersService {
@@ -24,6 +25,7 @@ export class UsersService {
     @Inject(USER_REPOSITORY) private userRepo: Repository<User>,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto) {
@@ -43,6 +45,8 @@ export class UsersService {
       password: hashedPassword,
     })
     const createdUser = await this.userRepo.save(user)
+
+    await this.notificationsService.sendUserNotification(createdUser, `Created`)
 
     return {
       id: createdUser.id,

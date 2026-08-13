@@ -1,6 +1,5 @@
 import { useState } from "react"
-import { useNavigate } from "react-router"
-import { LogOut, Menu, Search, Settings, Zap } from "lucide-react"
+import { LogOut, Menu, Search, Zap } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "#components/ui/avatar"
 import { Button } from "#components/ui/button"
@@ -36,7 +35,6 @@ function initialsFromName(name: string) {
 
 export function AdminTopBar() {
   const [open, setOpen] = useState(false)
-  const navigate = useNavigate()
   const { user } = useCurrentUser()
   const { logout, isLoggingOut } = useLogout()
 
@@ -111,10 +109,6 @@ export function AdminTopBar() {
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/admin/settings")}>
-              <Settings className="size-4" />
-              Settings
-            </DropdownMenuItem>
             <DropdownMenuItem
               disabled={isLoggingOut}
               className="text-destructive"

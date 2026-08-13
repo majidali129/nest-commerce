@@ -16,6 +16,7 @@ import { PaymentsModule } from './payments/payments.module'
 import { OrdersModule } from './orders/orders.module'
 import { ReservationsModule } from './reservations/reservations.module'
 import { WebhooksModule } from './webhooks/webhooks.module'
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { WebhooksModule } from './webhooks/webhooks.module'
     PaymentsModule,
     ReservationsModule,
     WebhooksModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

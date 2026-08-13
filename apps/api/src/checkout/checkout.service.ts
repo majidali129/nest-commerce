@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common'
 import { DataSource, EntityManager, In, Repository } from 'typeorm'
@@ -30,6 +31,8 @@ import {
 } from 'src/reservations/constants'
 import { InventoryReservation } from 'src/reservations/inventory-reservation.entity'
 import { DATA_SOURCE } from 'src/shared/constants'
+import { NotificationsService } from 'src/notifications/notifications.service'
+import { User } from 'src/users/user.entity'
 
 export type BeginCheckoutResult = {
   order: Order
@@ -45,11 +48,14 @@ export type BeginCheckoutResult = {
  */
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name)
+
   constructor(
     @Inject(DATA_SOURCE)
     private readonly dataSource: DataSource,
     @Inject(INVENTORY_RESERVATION_REPOSITORY)
     private readonly reservationRepo: Repository<InventoryReservation>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /** Pre-payment: pending order + payment + reservations + lock cart. */
@@ -57,10 +63,8 @@ export class CheckoutService {
     userId: number,
     input: { cartId: number; addressId: number },
   ): Promise<BeginCheckoutResult> {
-    console.log('Begin checkout for user', userId, input);
     return this.dataSource.transaction((manager) =>
       this.runBeginCheckout(manager, userId, input),
-    
     )
   }
 
@@ -73,9 +77,21 @@ export class CheckoutService {
       paymentMethod?: string | null
     },
   ): Promise<Order> {
-    return this.dataSource.transaction((manager) =>
+    const order = await this.dataSource.transaction((manager) =>
       this.runFinalizePaid(manager, orderId, options),
     )
+
+    // After TX commit — never fail payment finalize if Slack is down.
+    try {
+      await this.notificationsService.sendOrderConfirmation(order)
+    } catch (error) {
+      this.logger.error(
+        `Order confirmation notification failed for order ${order.id}`,
+        error instanceof Error ? error.stack : String(error),
+      )
+    }
+
+    return order
   }
 
   /** Cancel / expire / payment failure while still pending. */
@@ -628,6 +644,8 @@ export class CheckoutService {
     manager: EntityManager,
     orderId: number,
   ): Promise<Order> {
+    // Lock order alone — Postgres rejects FOR UPDATE with LEFT JOIN
+    // ("nullable side of an outer join").
     const order = await manager
       .getRepository(Order)
       .createQueryBuilder('ord')
@@ -640,6 +658,14 @@ export class CheckoutService {
     order.items = await manager.getRepository(OrderItem).find({
       where: { orderId: order.id },
     })
+
+    const user = await manager.getRepository(User).findOne({
+      where: { id: order.userId },
+    })
+    if (user) {
+      order.user = user
+    }
+
     return order
   }
 
