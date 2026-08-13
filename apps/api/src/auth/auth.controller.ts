@@ -21,6 +21,16 @@ import { ResponseMessage } from 'src/shared/decorators/response-message.decorato
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  private cookieOptions() {
+    const isProd = process.env.NODE_ENV === 'production'
+    return {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+      path: '/',
+    }
+  }
+
   @HttpCode(HttpStatus.CREATED)
   @Post('sign-up')
   @ResponseMessage('Sign up successful')
@@ -37,16 +47,9 @@ export class AuthController {
   ) {
     const { accessToken, refreshToken, user } =
       await this.authService.signIn(signInDto);
-    res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict', 
-    });
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-    });
+    const opts = this.cookieOptions()
+    res.cookie('accessToken', accessToken, opts);
+    res.cookie('refreshToken', refreshToken, opts);
     return { accessToken, refreshToken, user };
   }
 
@@ -59,8 +62,9 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.authService.signOut(user);
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    const opts = this.cookieOptions()
+    res.clearCookie('accessToken', opts);
+    res.clearCookie('refreshToken', opts);
     return null;
   }
 

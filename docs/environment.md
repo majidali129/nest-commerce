@@ -38,18 +38,21 @@ PostgreSQL must be running and match `POSTGRES_*` / `POSTGRES_URL` in the API en
 | Variable | Purpose |
 |----------|---------|
 | `PORT` | API listen port (default `3001`) |
-| `FRONTEND_URL` | Storefront origin (Stripe redirects, Slack admin links) |
+| `FRONTEND_URL` | Storefront origin — CORS, Stripe redirects, Slack admin links |
+| `CORS_ORIGINS` | Optional extra allowed origins (comma-separated) |
+| `TYPEORM_SYNC` | `true` once on a fresh DB to create tables; then `false` |
 
 ### PostgreSQL
 
 | Variable | Purpose |
 |----------|---------|
-| `POSTGRES_HOST` | DB host |
-| `POSTGRES_PORT` | DB port |
-| `POSTGRES_USER` | DB user |
-| `POSTGRES_PASSWORD` | DB password |
-| `POSTGRES_DATABASE` | Database name |
-| `POSTGRES_URL` | Full connection string (used by TypeORM) |
+| `DATABASE_URL` | Preferred on Railway / hosted Postgres (SSL on) |
+| `POSTGRES_HOST` | Local DB host (used when `DATABASE_URL` is empty) |
+| `POSTGRES_PORT` | Local DB port |
+| `POSTGRES_USER` | Local DB user |
+| `POSTGRES_PASSWORD` | Local DB password |
+| `POSTGRES_DATABASE` | Local database name |
+| `POSTGRES_URL` | Optional local URL helper |
 
 ### Auth
 
@@ -103,6 +106,17 @@ Optional (unused by the current webhook-based sender):
 If `SLACK_WEBHOOK_URL` is empty, Slack sends are skipped with a warning.
 
 ---
+
+## Deploy (Railway + Vercel)
+
+Set live URLs in platform env (not committed):
+
+| Platform | Key vars |
+|----------|----------|
+| **Railway (API)** | `DATABASE_URL`, `FRONTEND_URL` (Vercel URL), JWT/Cloudinary/Stripe/Slack secrets. First boot: `TYPEORM_SYNC=true`, then turn off. Stripe webhook → `https://<api>/webhook`. |
+| **Vercel (Web)** | Root/dir `apps/web` (or monorepo install). `VITE_API_URL=https://<railway-api>`. SPA rewrites via `apps/web/vercel.json`. |
+
+Root [`railway.toml`](../railway.toml) builds contracts + API and starts `start:prod`.
 
 ## Secrets
 

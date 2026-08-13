@@ -10,7 +10,7 @@ Default port: **3001**.
 |--------|---------|
 | `pnpm dev` | Nest watch mode |
 | `pnpm build` | Compile to `dist/` |
-| `pnpm start:prod` | Run compiled `dist/main` |
+| `pnpm start:prod` | Run compiled `dist/src/main.js` |
 | `pnpm lint` | ESLint |
 
 From repo root: `pnpm dev:api` or `pnpm --filter @repo/api dev`.
