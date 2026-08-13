@@ -1,20 +1,29 @@
 import { Link } from "react-router"
 import { Package, LogOut } from "lucide-react"
 
+import { useLogout } from "#components/auth/hooks/use-signout"
 import { Avatar, AvatarFallback } from "#components/ui/avatar"
 import { Button } from "#components/ui/button"
 import { Card, CardContent } from "#components/ui/card"
-import { getMockUser } from "#lib/mock-data"
+import { useCurrentUser } from "#hooks/use-current-user"
 
-const user = getMockUser()
-const initials = user.name
-  .split(" ")
-  .map((part) => part[0])
-  .join("")
-  .slice(0, 2)
-  .toUpperCase()
+function initialsFromName(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+}
 
 export function ProfilePage() {
+  const { user } = useCurrentUser()
+  const { logout, isLoggingOut } = useLogout()
+
+  const name = user?.name ?? "Account"
+  const email = user?.email ?? ""
+  const initials = initialsFromName(name)
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -30,8 +39,10 @@ export function ProfilePage() {
             <AvatarFallback className="text-lg">{initials}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium">{user.name}</p>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
+            <p className="font-medium">{name}</p>
+            {email ? (
+              <p className="text-sm text-muted-foreground">{email}</p>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -51,13 +62,17 @@ export function ProfilePage() {
           </div>
         </Button>
         <Button
+          type="button"
           variant="outline"
           className="h-auto justify-start gap-3 px-4 py-4 text-destructive hover:text-destructive"
-          render={<Link to="/" />}
+          disabled={isLoggingOut}
+          onClick={() => logout()}
         >
           <LogOut className="size-5 shrink-0" />
           <div className="text-left">
-            <p className="font-medium">Sign out</p>
+            <p className="font-medium">
+              {isLoggingOut ? "Signing out…" : "Sign out"}
+            </p>
             <p className="text-xs text-muted-foreground">
               Sign out of your account
             </p>

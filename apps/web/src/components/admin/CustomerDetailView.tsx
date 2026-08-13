@@ -1,6 +1,5 @@
 import { Link } from "react-router"
 
-import { StatusBadge } from "#components/admin/StatusBadge"
 import { Avatar, AvatarFallback } from "#components/ui/avatar"
 import { Badge } from "#components/ui/badge"
 import { Button } from "#components/ui/button"
@@ -10,16 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "#components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "#components/ui/table"
-import { formatDate, formatPrice } from "#lib/format"
-import { getOrders } from "#lib/mock-data"
+import { formatPrice } from "#lib/format"
 import type { Customer } from "#lib/types"
 
 interface CustomerDetailViewProps {
@@ -34,10 +24,6 @@ export function CustomerDetailView({ customer }: CustomerDetailViewProps) {
     .slice(0, 2)
     .toUpperCase()
 
-  const customerOrders = getOrders().filter(
-    (order) => order.shipping_address.email === customer.email
-  )
-
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -48,9 +34,9 @@ export function CustomerDetailView({ customer }: CustomerDetailViewProps) {
           <div className="min-w-0">
             <p className="font-medium">{customer.name}</p>
             <p className="text-sm text-muted-foreground">{customer.email}</p>
-            {customer.phone && (
+            {customer.phone ? (
               <p className="text-sm text-muted-foreground">{customer.phone}</p>
-            )}
+            ) : null}
           </div>
           <div className="ml-auto flex gap-6 text-sm">
             <div className="text-right">
@@ -93,54 +79,24 @@ export function CustomerDetailView({ customer }: CustomerDetailViewProps) {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
             <CardTitle>Order history</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              render={<Link to="/admin/orders" />}
+            >
+              All orders
+            </Button>
           </CardHeader>
           <CardContent>
-            {customerOrders.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No orders found for this customer in the demo data.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="w-10" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {customerOrders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.id}</TableCell>
-                      <TableCell>{formatDate(order.placed_at)}</TableCell>
-                      <TableCell>
-                        <StatusBadge kind="order" status={order.status} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatPrice(order.total)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          render={<Link to={`/admin/orders/${order.id}`} />}
-                        >
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+            <p className="text-sm text-muted-foreground">
+              Per-customer order history will appear here when customers are
+              connected to the API.
+            </p>
           </CardContent>
         </Card>
       </div>
-
     </div>
   )
 }

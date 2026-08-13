@@ -1,9 +1,10 @@
+import type { ProductListItem } from "@repo/contracts"
+
 import { ProductCard } from "#components/product/ProductCard"
-import type { Product } from "#lib/types"
 import { cn } from "#lib/utils"
 
 interface ProductCollectionProps {
-  products: Product[]
+  products: ProductListItem[]
   className?: string
 }
 
@@ -12,7 +13,7 @@ export function ProductGrid({ products, className }: ProductCollectionProps) {
     <div
       className={cn(
         "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
-        className
+        className,
       )}
     >
       {products.map((product) => (

@@ -6,9 +6,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-    --max-w-8xl: 88rem;
-    --max-w-9xl: 92rem;
-    --max-w-10xl: 96rem;
+    --container-8xl: 88rem;
+    --container-9xl: 104rem;
 }
 
 @theme inline {

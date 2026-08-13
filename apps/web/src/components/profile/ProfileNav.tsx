@@ -5,7 +5,7 @@ import { cn } from "#lib/utils"
 const navItems = [
   { to: "/profile", label: "Overview", end: true },
   { to: "/profile/orders", label: "Orders", end: false },
-  { to: "#", label: "Addresses", end: false, disabled: true },
+  { to: "/profile/addresses", label: "Addresses", end: false },
   { to: "#", label: "Payment Methods", end: false, disabled: true },
 ]
 

@@ -40,14 +40,15 @@ export interface DataTableColumn<T> {
   header: string
   cell: (row: T) => ReactNode
   sortValue?: (row: T) => string | number
+  sortable?: boolean
   className?: string
 }
 
 export interface DataTableFilter<T> {
   key: string
   label: string
-  options: { value: string; label: string }[]
-  match: (row: T, value: string) => boolean
+  options: { value: string | number; label: string }[]
+  match?: (row: T, value: string | number) => boolean
 }
 
 interface DataTableProps<T> {
@@ -61,6 +62,21 @@ interface DataTableProps<T> {
   rowActions?: (row: T) => ReactNode
   emptyTitle?: string
   emptyDescription?: string
+  /** Server-driven mode: data is already filtered/sorted/paginated. */
+  manual?: boolean
+  page?: number
+  pageCount?: number
+  onPageChange?: (page: number) => void
+  search?: string
+  onSearchChange?: (value: string) => void
+  filterValues?: Record<string, string>
+  onFilterChange?: (key: string, value: string) => void
+  sortKey?: string | null
+  sortDirection?: SortDirection
+  onSortChange?: (key: string) => void
+  getRowId?: (row: T, index: number) => string | number
+  /** Opens details (or similar) when the row body is clicked. Actions cell is excluded. */
+  onRowClick?: (row: T) => void
 }
 
 type SortDirection = "asc" | "desc"
@@ -78,14 +94,37 @@ export function DataTable<T>({
   rowActions,
   emptyTitle = "Nothing found",
   emptyDescription = "Try adjusting your search or filters.",
+  manual = false,
+  page: controlledPage,
+  pageCount: controlledPageCount,
+  onPageChange,
+  search: controlledSearch,
+  onSearchChange,
+  filterValues: controlledFilterValues,
+  onFilterChange,
+  sortKey: controlledSortKey,
+  sortDirection: controlledSortDirection,
+  onSortChange,
+  getRowId,
+  onRowClick,
 }: DataTableProps<T>) {
-  const [search, setSearch] = useState("")
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({})
-  const [sortKey, setSortKey] = useState<string | null>(null)
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
-  const [page, setPage] = useState(1)
+  const [localSearch, setLocalSearch] = useState("")
+  const [localFilterValues, setLocalFilterValues] = useState<
+    Record<string, string>
+  >({})
+  const [localSortKey, setLocalSortKey] = useState<string | null>(null)
+  const [localSortDirection, setLocalSortDirection] =
+    useState<SortDirection>("asc")
+  const [localPage, setLocalPage] = useState(1)
+
+  const search = controlledSearch ?? localSearch
+  const filterValues = controlledFilterValues ?? localFilterValues
+  const sortKey = controlledSortKey ?? localSortKey
+  const sortDirection = controlledSortDirection ?? localSortDirection
+  const page = controlledPage ?? localPage
 
   const filtered = useMemo(() => {
+    if (manual) return data
     const query = search.trim().toLowerCase()
     return data.filter((row) => {
       if (
@@ -97,13 +136,14 @@ export function DataTable<T>({
       }
       return filters.every((filter) => {
         const value = filterValues[filter.key]
-        return !value || value === ALL || filter.match(row, value)
+        if (!value || value === ALL) return true
+        return filter.match?.(row, value) ?? true
       })
     })
-  }, [data, search, searchText, filters, filterValues])
+  }, [manual, data, search, searchText, filters, filterValues])
 
   const sorted = useMemo(() => {
-    if (!sortKey) return filtered
+    if (manual || !sortKey) return filtered
     const column = columns.find((col) => col.key === sortKey)
     if (!column?.sortValue) return filtered
     const direction = sortDirection === "asc" ? 1 : -1
@@ -114,39 +154,57 @@ export function DataTable<T>({
       if (aValue > bValue) return 1 * direction
       return 0
     })
-  }, [filtered, columns, sortKey, sortDirection])
+  }, [manual, filtered, columns, sortKey, sortDirection])
 
-  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize))
+  const pageCount = manual
+    ? Math.max(1, controlledPageCount ?? 1)
+    : Math.max(1, Math.ceil(sorted.length / pageSize))
   const currentPage = Math.min(page, pageCount)
-  const pageRows = sorted.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  )
+  const pageRows = manual
+    ? sorted
+    : sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  const setPage = (next: number | ((prev: number) => number)) => {
+    const value = typeof next === "function" ? next(currentPage) : next
+    if (onPageChange) onPageChange(value)
+    else setLocalPage(value)
+  }
 
   const toggleSort = (key: string) => {
-    if (sortKey === key) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
+    if (onSortChange) {
+      onSortChange(key)
+      return
+    }
+    if (localSortKey === key) {
+      setLocalSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
     } else {
-      setSortKey(key)
-      setSortDirection("asc")
+      setLocalSortKey(key)
+      setLocalSortDirection("asc")
     }
   }
 
-  const hasToolbar = searchText !== undefined || filters.length > 0
+  const hasToolbar =
+    searchText !== undefined ||
+    onSearchChange !== undefined ||
+    filters.length > 0
 
   return (
     <div className="flex flex-col gap-4">
       {hasToolbar && (
         <div className="flex flex-wrap items-center gap-3">
-          {searchText && (
+          {(searchText || onSearchChange) && (
             <div className="relative w-full max-w-xs">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
                 value={search}
                 onChange={(event) => {
-                  setSearch(event.target.value)
-                  setPage(1)
+                  const value = event.target.value
+                  if (onSearchChange) onSearchChange(value)
+                  else {
+                    setLocalSearch(value)
+                    setLocalPage(1)
+                  }
                 }}
                 placeholder={searchPlaceholder}
                 aria-label={searchPlaceholder}
@@ -159,11 +217,15 @@ export function DataTable<T>({
               key={filter.key}
               value={filterValues[filter.key] ?? ALL}
               onValueChange={(value) => {
-                setFilterValues((prev) => ({
-                  ...prev,
-                  [filter.key]: value ?? ALL,
-                }))
-                setPage(1)
+                const next = value ?? ALL
+                if (onFilterChange) onFilterChange(filter.key, next)
+                else {
+                  setLocalFilterValues((prev) => ({
+                    ...prev,
+                    [filter.key]: next,
+                  }))
+                  setLocalPage(1)
+                }
               }}
             >
               <SelectTrigger
@@ -176,7 +238,10 @@ export function DataTable<T>({
                 <SelectGroup>
                   <SelectItem value={ALL}>All {filter.label}</SelectItem>
                   {filter.options.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem
+                      key={String(option.value)}
+                      value={String(option.value)}
+                    >
                       {option.label}
                     </SelectItem>
                   ))}
@@ -199,38 +264,47 @@ export function DataTable<T>({
           <Table>
             <TableHeader>
               <TableRow>
-                {columns.map((column) => (
-                  <TableHead key={column.key} className={column.className}>
-                    {column.sortValue ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(column.key)}
-                        className="flex items-center gap-1.5 font-medium hover:text-foreground/80"
-                      >
-                        {column.header}
-                        {sortKey === column.key ? (
-                          sortDirection === "asc" ? (
-                            <ArrowUp className="size-3.5" />
+                {columns.map((column) => {
+                  const canSort = manual
+                    ? Boolean(column.sortable)
+                    : Boolean(column.sortValue)
+                  return (
+                    <TableHead key={column.key} className={column.className}>
+                      {canSort ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(column.key)}
+                          className="flex items-center gap-1.5 font-medium hover:text-foreground/80"
+                        >
+                          {column.header}
+                          {sortKey === column.key ? (
+                            sortDirection === "asc" ? (
+                              <ArrowUp className="size-3.5" />
+                            ) : (
+                              <ArrowDown className="size-3.5" />
+                            )
                           ) : (
-                            <ArrowDown className="size-3.5" />
-                          )
-                        ) : (
-                          <ArrowUpDown className="size-3.5 text-muted-foreground" />
-                        )}
-                      </button>
-                    ) : (
-                      column.header
-                    )}
-                  </TableHead>
-                ))}
+                            <ArrowUpDown className="size-3.5 text-muted-foreground" />
+                          )}
+                        </button>
+                      ) : (
+                        column.header
+                      )}
+                    </TableHead>
+                  )
+                })}
                 {rowActions && (
-                  <TableHead className="w-24 text-right">Actions</TableHead>
+                  <TableHead className="w-32 text-right">Actions</TableHead>
                 )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {pageRows.map((row, rowIndex) => (
-                <TableRow key={rowIndex}>
+                <TableRow
+                  key={getRowId?.(row, rowIndex) ?? rowIndex}
+                  className={cn(onRowClick && "cursor-pointer")}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                >
                   {columns.map((column) => (
                     <TableCell
                       key={column.key}
@@ -240,7 +314,10 @@ export function DataTable<T>({
                     </TableCell>
                   ))}
                   {rowActions && (
-                    <TableCell className="text-right">
+                    <TableCell
+                      className="text-right"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <div className="flex items-center justify-end gap-1">
                         {rowActions(row)}
                       </div>
@@ -260,7 +337,7 @@ export function DataTable<T>({
               <PaginationPrevious
                 aria-disabled={currentPage === 1}
                 className={cn(
-                  currentPage === 1 && "pointer-events-none opacity-50"
+                  currentPage === 1 && "pointer-events-none opacity-50",
                 )}
                 onClick={(event) => {
                   event.preventDefault()
@@ -281,13 +358,14 @@ export function DataTable<T>({
                     {pageNumber}
                   </PaginationLink>
                 </PaginationItem>
-              )
+              ),
             )}
             <PaginationItem>
               <PaginationNext
                 aria-disabled={currentPage === pageCount}
                 className={cn(
-                  currentPage === pageCount && "pointer-events-none opacity-50"
+                  currentPage === pageCount &&
+                    "pointer-events-none opacity-50",
                 )}
                 onClick={(event) => {
                   event.preventDefault()

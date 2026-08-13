@@ -80,6 +80,7 @@ export function CustomersListPage() {
         searchText={(customer) => `${customer.name} ${customer.email}`}
         pageSize={8}
         emptyTitle="No customers found"
+        onRowClick={(customer) => navigate(`/admin/customers/${customer.id}`)}
         rowActions={(customer) => (
           <Button
             variant="ghost"

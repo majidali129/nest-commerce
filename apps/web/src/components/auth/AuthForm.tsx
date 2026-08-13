@@ -1,8 +1,12 @@
 import { Link } from "react-router"
+import { Loader2 } from "lucide-react"
 
 import { Button } from "#components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "#components/ui/field"
 import { Input } from "#components/ui/input"
+import { useSignIn } from "./hooks/use-signin"
+import { useSignUp } from "./hooks/use-signup"
+import { signInPath, signUpPath } from "../../paths"
 
 interface AuthFormProps {
   mode: "signup" | "signin"
@@ -10,13 +14,29 @@ interface AuthFormProps {
 
 export function AuthForm({ mode }: AuthFormProps) {
   const isSignup = mode === "signup"
+  const { loginUser, isLoggingInUser } = useSignIn()
+  const { createAccount, isCreatingAccount } = useSignUp()
+  const isPending = isSignup ? isCreatingAccount : isLoggingInUser
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isPending) return
+
+    const formData = new FormData(event.currentTarget)
+    const email = String(formData.get("email") ?? "").trim()
+    const password = String(formData.get("password") ?? "")
+
+    if (isSignup) {
+      const name = String(formData.get("name") ?? "").trim()
+      createAccount({ name, email, password })
+      return
+    }
+
+    loginUser({ email, password })
+  }
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-      }}
-    >
+    <form onSubmit={handleSubmit}>
       <FieldGroup className="flex flex-col gap-4">
         {isSignup && (
           <Field>
@@ -27,7 +47,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               required
               autoComplete="name"
               placeholder="Alex Morgan"
-              defaultValue="Alex Morgan"
+              disabled={isPending}
             />
           </Field>
         )}
@@ -40,7 +60,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             required
             autoComplete="email"
             placeholder="you@example.com"
-            defaultValue="alex@example.com"
+            disabled={isPending}
           />
         </Field>
         <Field>
@@ -50,19 +70,33 @@ export function AuthForm({ mode }: AuthFormProps) {
             name="password"
             type="password"
             required
+            minLength={isSignup ? 8 : undefined}
             autoComplete={isSignup ? "new-password" : "current-password"}
             placeholder="••••••••"
-            defaultValue="password"
+            disabled={isPending}
           />
         </Field>
-        <Button type="submit" size="lg" className="w-full">
-          {isSignup ? "Create account" : "Sign in"}
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full"
+          disabled={isPending}
+        >
+          {isPending && <Loader2 className="animate-spin" data-icon="inline-start" />}
+          {isPending
+            ? isSignup
+              ? "Creating account…"
+              : "Signing in…"
+            : isSignup
+              ? "Create account"
+              : "Sign in"}
         </Button>
         <p className="text-center text-sm text-muted-foreground">
           {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
           <Link
-            to={isSignup ? "/signin" : "/signup"}
+            to={isSignup ? signInPath() : signUpPath()}
             className="font-medium text-foreground underline-offset-4 hover:underline"
+            aria-disabled={isPending}
           >
             {isSignup ? "Sign in" : "Sign up"}
           </Link>

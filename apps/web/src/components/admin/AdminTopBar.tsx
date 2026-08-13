@@ -1,6 +1,5 @@
 import { useState } from "react"
-import { Link, useNavigate } from "react-router"
-import { LogOut, Menu, Search, Settings, Zap } from "lucide-react"
+import { LogOut, Menu, Search, Zap } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "#components/ui/avatar"
 import { Button } from "#components/ui/button"
@@ -22,10 +21,25 @@ import {
   SheetTrigger,
 } from "#components/ui/sheet"
 import { AdminNavLinks } from "#components/admin/AdminSidebar"
+import { useLogout } from "#components/auth/hooks/use-signout"
+import { useCurrentUser } from "#hooks/use-current-user"
+
+function initialsFromName(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+}
 
 export function AdminTopBar() {
   const [open, setOpen] = useState(false)
-  const navigate = useNavigate()
+  const { user } = useCurrentUser()
+  const { logout, isLoggingOut } = useLogout()
+
+  const displayName = user?.name ?? "Admin"
+  const initials = initialsFromName(displayName)
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/60 sm:px-6">
@@ -79,27 +93,29 @@ export function AdminTopBar() {
             }
           >
             <Avatar className="size-7">
-              <AvatarFallback className="text-xs">AU</AvatarFallback>
+              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
             </Avatar>
             <span className="hidden text-sm font-medium sm:block">
-              Admin User
+              {displayName}
             </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Admin User</DropdownMenuLabel>
+              <DropdownMenuLabel className="font-normal">
+                <p className="font-medium">{displayName}</p>
+                {user?.email ? (
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                ) : null}
+              </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/admin/settings")}>
-              <Settings className="size-4" />
-              Settings
-            </DropdownMenuItem>
             <DropdownMenuItem
-              render={<Link to="/" />}
+              disabled={isLoggingOut}
               className="text-destructive"
+              onClick={() => logout()}
             >
               <LogOut className="size-4" />
-              Sign out
+              {isLoggingOut ? "Signing out…" : "Sign out"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

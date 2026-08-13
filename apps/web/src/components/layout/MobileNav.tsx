@@ -1,4 +1,4 @@
-import { NavLink } from "react-router"
+import { Link, NavLink } from "react-router"
 import { Menu, Zap } from "lucide-react"
 
 import { Button } from "#components/ui/button"
@@ -9,30 +9,40 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "#components/ui/sheet"
+import { useCurrentUser } from "#hooks/use-current-user"
 import { cn } from "#lib/utils"
+import { profilePath, signInPath } from "../../paths"
 
-const navLinks = [
+const baseLinks = [
   { to: "/", label: "Home" },
   { to: "/categories", label: "Categories" },
   { to: "/products", label: "Products" },
   { to: "/cart", label: "Cart" },
-  { to: "/profile", label: "Account" },
 ]
 
 export function MobileNav({ className }: { className?: string }) {
+  const { isAuthenticated } = useCurrentUser()
+
+  const navLinks = [
+    ...baseLinks,
+    isAuthenticated
+      ? { to: profilePath(), label: "Account" }
+      : { to: signInPath(), label: "Sign in" },
+  ]
+
   return (
     <Sheet>
       <SheetTrigger
         render={
           <Button
             variant="ghost"
-            size="icon"
+            size="icon-sm"
             aria-label="Open menu"
             className={className}
           />
         }
       >
-        <Menu />
+        <Menu className="size-4" />
       </SheetTrigger>
       <SheetContent side="left" className="w-72 gap-0">
         <SheetHeader className="border-b">
@@ -54,7 +64,7 @@ export function MobileNav({ className }: { className?: string }) {
                   "rounded-lg px-3 py-2 text-sm transition-colors",
                   isActive
                     ? "bg-muted font-medium text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )
               }
             >
@@ -62,6 +72,13 @@ export function MobileNav({ className }: { className?: string }) {
             </NavLink>
           ))}
         </nav>
+        {!isAuthenticated ? (
+          <div className="mt-auto border-t p-4">
+            <Button className="w-full" render={<Link to={signInPath()} />}>
+              Sign in
+            </Button>
+          </div>
+        ) : null}
       </SheetContent>
     </Sheet>
   )

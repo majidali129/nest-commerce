@@ -1,4 +1,4 @@
-import { Link } from "react-router"
+import { Link, useParams } from "react-router"
 import { UserRoundX } from "lucide-react"
 
 import { AdminPageHeader } from "#components/admin/AdminPageHeader"
@@ -9,7 +9,8 @@ import { Button } from "#components/ui/button"
 import { getCustomerById } from "#lib/mock-data"
 
 export function CustomerDetailPage() {
-  const customer = getCustomerById('cust-001')
+  const { customerId = "" } = useParams()
+  const customer = getCustomerById(customerId)
 
   if (!customer) {
     return (

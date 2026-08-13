@@ -1,4 +1,5 @@
 import { SlidersHorizontal } from "lucide-react"
+import type { CategoryListItem } from "@repo/contracts"
 
 import { Button } from "#components/ui/button"
 import {
@@ -10,7 +11,21 @@ import {
 } from "#components/ui/sheet"
 import { FilterPanel } from "#components/catalog/FilterPanel"
 
-export function FilterSheet() {
+interface FilterSheetProps {
+  categories: CategoryListItem[]
+  categoryId: number | null
+  onCategoryChange: (categoryId: number | null) => void
+  priceRange: [number, number]
+  onPriceRangeChange: (range: [number, number]) => void
+}
+
+export function FilterSheet({
+  categories,
+  categoryId,
+  onCategoryChange,
+  priceRange,
+  onPriceRangeChange,
+}: FilterSheetProps) {
   return (
     <Sheet>
       <SheetTrigger render={<Button variant="outline" size="sm" />}>
@@ -22,7 +37,13 @@ export function FilterSheet() {
           <SheetTitle>Filters</SheetTitle>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto p-4">
-          <FilterPanel />
+          <FilterPanel
+            categories={categories}
+            categoryId={categoryId}
+            onCategoryChange={onCategoryChange}
+            priceRange={priceRange}
+            onPriceRangeChange={onPriceRangeChange}
+          />
         </div>
       </SheetContent>
     </Sheet>
