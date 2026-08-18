@@ -49,7 +49,7 @@ export class CartsService {
     const variant = await this.findPurchasableVariant(input.variantId)
     const available = this.availableStock(variant)
     if (available < 1) {
-      throw new BadRequestException('This variant is out of stock')
+      throw new BadRequestException(`${this.itemLabel(variant)} is out of stock.`)
     }
 
     const existing = await this.cartItemRepo.findOne({
@@ -58,9 +58,7 @@ export class CartsService {
 
     const nextQty = (existing?.quantity ?? 0) + input.quantity
     if (nextQty > available) {
-      throw new BadRequestException(
-        `Only ${available} unit(s) available for this variant`,
-      )
+      throw new BadRequestException(this.stockMessage(variant, available))
     }
 
     if (existing) {
@@ -99,14 +97,14 @@ export class CartsService {
       variant.deletedAt ||
       variant.status !== VariantStatus.ACTIVE
     ) {
-      throw new BadRequestException('Variant is no longer available')
+      throw new BadRequestException(
+        `${this.itemLabel(variant)} is no longer available.`,
+      )
     }
 
     const available = this.availableStock(variant)
     if (input.quantity > available) {
-      throw new BadRequestException(
-        `Only ${available} unit(s) available for this variant`,
-      )
+      throw new BadRequestException(this.stockMessage(variant, available))
     }
 
     item.quantity = input.quantity
@@ -263,10 +261,28 @@ export class CartsService {
       variant.product.deletedAt ||
       variant.product.publicationStatus !== PublicationStatus.PUBLISHED
     ) {
-      throw new BadRequestException('Product is not available for purchase')
+      throw new BadRequestException(
+        `${this.itemLabel(variant)} is no longer available.`,
+      )
     }
 
     return variant
+  }
+
+  private itemLabel(variant?: ProductVariant | null): string {
+    const name = variant?.product?.name?.trim()
+    const color = variant?.attributes?.color?.trim()
+    const size = variant?.attributes?.size?.trim()
+    const details = [color, size].filter(Boolean).join(', ')
+    if (name && details) return `${name} (${details})`
+    if (name) return name
+    return 'This item'
+  }
+
+  private stockMessage(variant: ProductVariant, available: number): string {
+    const label = this.itemLabel(variant)
+    if (available < 1) return `${label} is out of stock.`
+    return `Only ${available} left for ${label}. Update your quantity to continue.`
   }
 
   private availableStock(variant: ProductVariant): number {

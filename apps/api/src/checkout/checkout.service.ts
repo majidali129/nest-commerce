@@ -261,15 +261,12 @@ export class CheckoutService {
         variant.product.publicationStatus !== PublicationStatus.PUBLISHED
       ) {
         throw new BadRequestException(
-          `Variant ${item.variantId} is not available for purchase`,
+          `${this.itemLabel(variant)} is no longer available. Remove it from your cart to continue.`,
         )
       }
-      // Soft availability check only — authoritative reserve happens under row locks.
       const available = variant.stockOnHand - variant.reservedStock
       if (item.quantity > available) {
-        throw new ConflictException(
-          `Only ${Math.max(0, available)} unit(s) available for ${variant.sku}`,
-        )
+        throw new ConflictException(this.stockMessage(variant, available))
       }
     }
 
@@ -534,14 +531,17 @@ export class CheckoutService {
       const variant = lockedMap.get(item.variantId)
       if (!variant || variant.deletedAt) {
         throw new BadRequestException(
-          `Variant ${item.variantId} is not available for purchase`,
+          `${this.itemLabel(params.variantMap.get(item.variantId) ?? variant)} is no longer available. Remove it from your cart to continue.`,
         )
       }
 
       const available = Math.max(0, variant.stockOnHand - variant.reservedStock)
       if (item.quantity > available) {
         throw new ConflictException(
-          `Only ${available} unit(s) available for ${variant.sku}`,
+          this.stockMessage(
+            params.variantMap.get(item.variantId) ?? variant,
+            available,
+          ),
         )
       }
 
@@ -653,6 +653,22 @@ export class CheckoutService {
       reservation.status = nextStatus
       await reservationRepo.save(reservation)
     }
+  }
+
+  private itemLabel(variant?: ProductVariant | null): string {
+    const name = variant?.product?.name?.trim()
+    const color = variant?.attributes?.color?.trim()
+    const size = variant?.attributes?.size?.trim()
+    const details = [color, size].filter(Boolean).join(', ')
+    if (name && details) return `${name} (${details})`
+    if (name) return name
+    return 'An item in your cart'
+  }
+
+  private stockMessage(variant: ProductVariant, available: number): string {
+    const label = this.itemLabel(variant)
+    if (available < 1) return `${label} is out of stock.`
+    return `Only ${available} left for ${label}. Update your quantity to continue.`
   }
 
   private async countActiveReservations(
