@@ -29,11 +29,8 @@ export const useLogout = () => {
     mutationFn: () => authApi.logout(),
     onSettled: (_data, error) => {
       clearSession(queryClient)
-      if (error) {
-        toast.error(error.message || "Signed out locally")
-      } else {
-        toast.success("Logged out successfully")
-      }
+      if(error) console.log(error.message || "Signed out locally")
+
       navigate(signInPath(), { replace: true })
     },
   })
